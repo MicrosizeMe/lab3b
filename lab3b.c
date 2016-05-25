@@ -8,7 +8,8 @@ FILE* indirectCsv;
 
 FILE* lab3bCheck;
 
-int main (int argc, const char* argv[]) {
+
+void initializeDataStructures() {
 	superCsv = fopen("super.csv", "r");
 	groupCsv = fopen("group.csv", "r");
 	bitmapCsv = fopen("bitmap.csv", "r");
@@ -17,4 +18,10 @@ int main (int argc, const char* argv[]) {
 	indirectCsv = fopen("indirect.csv", "r");
 
 	lab3bCheck = fopen("lab3b_check.txt", "w+");
+
+	//Initialize maps, lists, so on
+}
+
+int main (int argc, const char* argv[]) {
+	initializeDataStructures();
 }

@@ -48,3 +48,16 @@ Data structures needed
 * List of inodes that are mentioned in directory listings (3, 5, 6)
 	* Directory entry substructure
 * List of inodes marked free on free list (4)
+
+
+Logically group 1,2 as similar work
+
+Group 3, 5, 6 as similar work
+Group 4 as similar work
+Group 7 as similar work
+
+3, 4, 5 depend on inode structure
+
+info needed from inodes
+* Figure out which data blocks each inode points to
+* Figure out 
