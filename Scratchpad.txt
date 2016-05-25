@@ -1,0 +1,10 @@
+Go through inode list, check blocks used by each inode
+* Record data blocks listed twice
+* Record data blocks listed as free
+Go through directory listing 
+* Check for inodes not in the inode listing
+* Check for inode counts not equal to number of times directories link to them
+* Check that . lists to the same directory entry and that .. links to the parent
+Check inode free list for inodes marked used and not in use
+Check block pointers that point to blocks that are invalid in the fs
+	* EG 0, 1, more than max
