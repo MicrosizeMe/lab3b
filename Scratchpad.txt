@@ -50,11 +50,9 @@ Data structures needed
 * List of inodes marked free on free list (4)
 
 
-Logically group 1,2 as similar work
-
+Logically group 1, 2, 7 as similar work
 Group 3, 5, 6 as similar work
 Group 4 as similar work
-Group 7 as similar work
 
 3, 4, 5 depend on inode structure
 
