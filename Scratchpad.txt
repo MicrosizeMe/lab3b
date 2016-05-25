@@ -8,3 +8,43 @@ Go through directory listing
 Check inode free list for inodes marked used and not in use
 Check block pointers that point to blocks that are invalid in the fs
 	* EG 0, 1, more than max
+
+
+1. Unallocated block: Blocks used by inode but marked free
+* Dependencies: 
+//	* which blocks marked free on free list
+//	* which blocks marked used by inodes
+2. Duplicately allocated block: Blocks that are allocated twice to different inodes
+* Dependencies:
+//	* which blocks marked used by inodes
+3. Unallocated inode: Inodes used in directory entries but don't show up in inode.csv
+* Dependencies: 
+//	* Which inodes are marked by directory listings
+//	* Which inodes exist in inode.csv
+4. Missing inodes: Inodes not in use but marked allocated by inode free map
+* Dependencies
+//	* which inodes marked free on free list
+//	* which inodes exist in inode.csv
+5. Incorrecct link count: inodes whose link counts do not reflect directory listings
+* Dependencies: 
+//	* which inodes are marked by directory listings
+//	* which inodes exist in inode.csv
+//	* Information about specific inodes in inode.csv
+6. incorrect directory entry: the . and .. do not point to the correct inode entries
+* Dependencies:
+//	* which inodes are marked by directory listings
+//	* the directory entry tree
+7. invalid block pointer: Block pointers point to the incorrect locations
+* Dependencies: 
+//	* Looking at inode links
+
+
+Data structures needed
+* Map of data blocks to claiming inodes (1, 2)
+* List of blocks marked free on free list (1)
+* List of indoes that exist in inode.csv (3, 4, 5)
+	* Link count of corresponding inodes in inode.csv (5)
+	* Inode links (figuring out where inodes link to) (7)
+* List of inodes that are mentioned in directory listings (3, 5, 6)
+	* Directory entry substructure
+* List of inodes marked free on free list (4)
