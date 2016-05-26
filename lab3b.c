@@ -78,12 +78,20 @@ int getCellRow(FILE* csv, char* buffer) {
 			}
 		}
 	}
+
+	return size;
 }
 
 //Given a certain column and line data, returns the colth column and stores to buffer
 //(Null terminated). Returns the cell length of that buffer (not including the null byte)
-int getCell(int col, char* line, char* buffer) {
-	
+int getCell(int col, char* line, char* buffer, int size) {
+	//find starting point
+	int i;
+	int curCol = 0;
+	int inQuotes = 0;
+	for (i = 0; i < ; i++){
+		
+	}
 }
 
 //Returns the corresponding integer from cell assumed to be storing decimal info 
