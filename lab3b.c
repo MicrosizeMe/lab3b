@@ -154,32 +154,35 @@ Inode* getInode(unsigned int inodeNumber) {
 
 //Initializes the super block information based on superCsv
 void initSuperBlock() {
-	unsigned char lineBuffer[1024];
-	int lineLength = getCellRow(superCsv, lineBuffer);
-	unsigned char cellBuffer[32];
+	unsigned char* lineBuffer = NULL;
+	int lineLength = getCellRow(superCsv, &lineBuffer);
+	unsigned char* cellBuffer = NULL;
 	//Get inode count
-	int cellLength = getCell(1, lineBuffer, cellBuffer, lineLength); 
+	int cellLength = getCell(1, lineBuffer, &cellBuffer, lineLength); 
 	cellLength = getIntFromDecCell(cellBuffer, cellLength);
 	//Get block count
-	cellLength = getCell(2, lineBuffer, cellBuffer, lineLength); 
+	cellLength = getCell(2, lineBuffer, &cellBuffer, lineLength); 
 	blockCount = getIntFromDecCell(cellBuffer, cellLength);
 	//Get block size
-	cellLength = getCell(3, lineBuffer, cellBuffer, lineLength); 
+	cellLength = getCell(3, lineBuffer, &cellBuffer, lineLength); 
 	blockSize = getIntFromDecCell(cellBuffer, cellLength);
 	//Get blocksPerGroup
-	cellLength = getCell(5, lineBuffer, cellBuffer, lineLength); 
+	cellLength = getCell(5, lineBuffer, &cellBuffer, lineLength); 
 	blocksPerGroup = getIntFromDecCell(cellBuffer, cellLength);
 	//Get inodesPerGroup
-	cellLength = getCell(6, lineBuffer, cellBuffer, lineLength); 
+	cellLength = getCell(6, lineBuffer, &cellBuffer, lineLength); 
 	inodesPerGroup = getIntFromDecCell(cellBuffer, cellLength);
 	//get firstDataBlock
-	cellLength = getCell(8, lineBuffer, cellBuffer, lineLength); 
+	cellLength = getCell(8, lineBuffer, &cellBuffer, lineLength);
 	firstDataBlock = getIntFromDecCell(cellBuffer, cellLength);
+
+	free(lineBuffer);
+	free(cellBuffer);
 }
 
 void initIndirectStructure() {
-	unsigned char lineBuffer[1024];
-	unsigned char cellBuffer[32];
+	unsigned char* lineBuffer = NULL;
+	unsigned char* cellBuffer = NULL;
 
 	//Initialize buffer
 	int maxSize = 5127; //No reason at all we'd pick this number. Nope.
@@ -192,11 +195,11 @@ void initIndirectStructure() {
 	int lineLength = 0;
 	int cellLength = 0;
 	while (1) {
-		lineLength = getCellRow(indirectCsv, lineBuffer);
+		lineLength = getCellRow(indirectCsv, &lineBuffer);
 		if (lineLength == -1) break; //Reached end of indirects
 		
 		//Get the block number of the containing block
-		cellLength = getCell(0, lineBuffer, cellBuffer, lineLength);
+		cellLength = getCell(0, lineBuffer, &cellBuffer, lineLength);
 		unsigned int thisBlock = getIntFromHexCell(cellBuffer, cellLength); 
 		if (thisBlock != lastContainingBlockNumber) { //Different block number as the last 
 													  //one in the list. Either block
@@ -228,16 +231,18 @@ void initIndirectStructure() {
 		}
 
 		//Get entry index
-		cellLength = getCell(1, lineBuffer, cellBuffer, lineLength);
+		cellLength = getCell(1, lineBuffer, &cellBuffer, lineLength);
 		unsigned int blockPointerIndex = getIntFromDecCell(cellBuffer, cellLength);
 
 		//Get block pointer value
-		cellLength = getCell(2, lineBuffer, cellBuffer, lineLength);
+		cellLength = getCell(2, lineBuffer, &cellBuffer, lineLength);
 		unsigned int blockPointerValue = getIntFromHexCell(cellBuffer, cellLength);
 
 		//Assign to indirectLinks[lastIndex];
 		indirectLinks[lastIndex].blockPointers[blockPointerIndex] = blockPointerValue;
 	}
+	free(lineBuffer);
+	free(cellBuffer);
 }
 
 void initInodes() {
@@ -249,8 +254,8 @@ void initInodes() {
 
 		//List inode in listedInodes
 			//Link link count found in inode, 
-	unsigned char lineBuffer[1024];
-	unsigned char cellBuffer[32];
+	unsigned char* lineBuffer = NULL;
+	unsigned char* cellBuffer = NULL;
 
 	//Initialize the buffer
 	int maxSize = 187; //No reason at all we'd pick this number.
@@ -260,7 +265,7 @@ void initInodes() {
 	int lineLength;
 	int cellLength;
 	while (1) {
-		lineLength = getCellRow(indirectCsv, lineBuffer);
+		lineLength = getCellRow(indirectCsv, &lineBuffer);
 		if (lineLength == -1) break; //Reached end of inodes
 		if (listedInodesSize >= maxSize) { //Must realloc
 			maxSize *= 2;
@@ -269,10 +274,36 @@ void initInodes() {
 		//Each inode is unique, so store newest one at the current node.
 		
 		//Get inode number
-		cellLength = getCell(0, lineBuffer, cellBuffer, lineLength);
+		cellLength = getCell(0, lineBuffer, &cellBuffer, lineLength);
 		listedInodes[listedInodesSize].inodeNumber 
 			= getIntFromDecCell(cellBuffer, cellLength);
+
+		//Get filetype char
+		cellLength = getCell(1, lineBuffer, &cellBuffer, lineLength);
+		listedInodes[listedInodesSize].fileType = cellBuffer[0];
+		
+		//Get link count (as specified by inode)
+		cellLength = getCell(5, lineBuffer, &cellBuffer, lineLength);
+		listedInodes[listedInodesSize].nodeLinkCount 
+			= getIntFromDecCell(cellBuffer, cellLength);
+
+		//Initialize dirLinkCount to zero (will be set by directory traversal)
+		listedInodes[listedInodesSize].dirLinkCount = 0;
+		
+		//Block pointers start from cell 11. 
+		for (int i = 0; i < 15; i++) {
+			cellLength = getCell(11 + i, lineBuffer, &cellBuffer, lineLength);
+			listedInodes[listedInodesSize].blockPointers[i]
+				= getIntFromHexCell(cellBuffer, cellLength);
+
+			//Check validity
+		}
+		unsigned int blockPointers[15]; //Lists block pointers 0 through 14, with 12-14
+							//being indirect, doubly indirect, triple indirect
 	}
+
+	free(lineBuffer);
+	free(cellBuffer);
 }
 
 void initializeDataStructures() {
