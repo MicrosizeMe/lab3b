@@ -31,6 +31,19 @@ int inodesPerGroup;
 int firstDataBlock; //Data blocks from zero to here are invalid
 
 
+//Gets the next cell row of the csv file and stores the characters in buffer 
+//(null terminated). Returns the length of buffer, -1 if there are no more lines
+//(not including the null byte).
+int getCellRow(FILE* csv, char* buffer) {
+
+}
+
+//Given a certain column and line data, returns the colth column and stores to buffer
+//(Null terminated). Returns the cell length of that buffer (not including the null byte)
+int getCell(int col, char* line, char* buffer) {
+
+}
+
 //Returns a particular Inode structure given a number, or NULL if it doesn't exist.
 Inode* getInode(unsigned int inodeNumber) {
 	for (int i = 0; i < listedInodesSize; i++) {
