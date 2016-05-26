@@ -37,12 +37,53 @@ int firstDataBlock; //Data blocks from zero to here are invalid
 int getCellRow(FILE* csv, char* buffer) {
 	char * line = NULL;
 	size_t size = 0;
+	ssize_t read;
+
+	read = getline(&line, &size, csv);
+
+	if (read == -1)
+		return read;
+
+	//traverse entire line looking for quotations
+	int i;
+	int quoteCount = 0;
+	for (i = 0; i < size; i++){
+		if (line[i] == '"'){
+			quoteCount++;
+		}
+	}
+
+	//if odd number of quotations, loop until next one is found
+	char * line2;
+	size_t size2;
+	ssize_t read2;
+
+	while ((quoteCount % 2) == 1){
+		line2 = NULL;
+		size2 = 0;
+
+		read2 = getline(&line2, &size2, csv);
+		if (read2 == -1)
+			return read2;
+
+		//append line2 to line
+		size += (size2 + 1);
+		line = (char *) realloc(line, size);
+		strncat(line, line2, size2);
+
+		//updates quote count
+		for (i = 0; i < size2; i++){
+			if (line2[i] == '"'){
+				quoteCount++;
+			}
+		}
+	}
 }
 
 //Given a certain column and line data, returns the colth column and stores to buffer
 //(Null terminated). Returns the cell length of that buffer (not including the null byte)
 int getCell(int col, char* line, char* buffer) {
-
+	
 }
 
 //Returns the corresponding integer from cell assumed to be storing decimal info 
