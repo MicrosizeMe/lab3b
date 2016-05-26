@@ -14,35 +14,75 @@ Check block pointers that point to blocks that are invalid in the fs
 * Dependencies: 
 //	* which blocks marked free on free list
 //	* which blocks marked used by inodes
+* Report:
+//	* Block number
+//	* For every inode that references it:
+//		- Inode number
+//		- (Indrect block number)
+//		- Entry number
+
 2. Duplicately allocated block: Blocks that are allocated twice to different inodes
 * Dependencies:
 //	* which blocks marked used by inodes
+* Report:
+//	* Block number
+//	* For every inode that references it:
+//		- Inode number
+//		- (Indrect block number)
+//		- Entry number
+
 3. Unallocated inode: Inodes used in directory entries but don't show up in inode.csv
 * Dependencies: 
 //	* Which inodes are marked by directory listings
 //	* Which inodes exist in inode.csv
+* Report:
+//	* Inode number
+//	* For every directory that references it:
+//		- Directory number
+//		- Entry number
+
 4. Missing inodes: Inodes not in use but marked allocated by inode free map
 * Dependencies
 //	* which inodes marked free on free list
 //	* which inodes exist in inode.csv
-5. Incorrecct link count: inodes whose link counts do not reflect directory listings
+* Report:
+//	* Inode number
+//	* Free list number
+
+5. Incorrect link count: inodes whose link counts do not reflect directory listings
 * Dependencies: 
 //	* which inodes are marked by directory listings
 //	* which inodes exist in inode.csv
 //	* Information about specific inodes in inode.csv
+* Report:
+//	* Inode number
+//	* Link count
+//	* Actual link count (what it should be)
+
 6. incorrect directory entry: the . and .. do not point to the correct inode entries
 * Dependencies:
 //	* which inodes are marked by directory listings
 //	* the directory entry tree
+* Report:
+//	* Inode number (of directory)
+//	* Name of directory entry
+//	* (incorrect) Inode number (of entry)
+//	* (correct) Inode number (of entry)
+
 7. invalid block pointer: Block pointers point to the incorrect locations
 * Dependencies: 
 //	* Looking at inode links
+* Report:
+//	* Block number (of invalid block)
+//	* Inode number 
+//	* (Indirect block number)
+//	* Entry number
 
 
 Data structures needed
 * Map of data blocks to claiming inodes (1, 2)
 * List of blocks marked free on free list (1)
-* List of indoes that exist in inode.csv (3, 4, 5)
+* List of inodes that exist in inode.csv (3, 4, 5)
 	* Link count of corresponding inodes in inode.csv (5)
 	* Inode links (figuring out where inodes link to) (7)
 * List of inodes that are mentioned in directory listings (3, 5, 6)
