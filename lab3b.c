@@ -34,6 +34,7 @@ int firstDataBlock; //Data blocks from zero to here are invalid
 //Gets the next cell row of the csv file and stores the characters in buffer 
 //(null terminated). Returns the length of buffer, -1 if there are no more lines
 //(not including the null byte).
+// ** BUFFER ASSUMED TO BE NULL **
 int getCellRow(FILE* csv, char** buffer) {
 	//char * line = NULL;
 	size_t size = 0;
