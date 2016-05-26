@@ -1,4 +1,6 @@
 #include <stdio.h>
+#include <stdlib.h>
+
 
 FILE* superCsv;
 FILE* groupCsv;
@@ -17,10 +19,21 @@ struct inodeStructure {
 	unsigned int blockPointers[15]; //Lists block pointers 0 through 14, with 12-14
 						//being indirect, doubly indirect, triple indirect
 };
-typedef inodeStructure Inode;
+typedef struct inodeStructure Inode;
 
+struct indirectLinkStructure {
+	unsigned int blockNumber;
+	unsigned int* blockPointers; //Size of this array is always blockSize / 4
+}
+typedef struct indirectLinkStructure IndirectLink;
+
+//List of inodes
 Inode* listedInodes;
 int listedInodesSize;
+
+//List of indirect block links
+IndirectLink* indirectLinks;
+int indirectLinksSize;
 
 //Superblock info
 int inodeCount;
@@ -77,9 +90,88 @@ Inode* getInode(unsigned int inodeNumber) {
 
 //Initializes the super block information based on superCsv
 void initSuperBlock() {
-	buffer[1024];
-	getCellRow(superCsv, &buffer);
-	
+	unsigned char lineBuffer[1024];
+	getCellRow(superCsv, lineBuffer);
+	unsigned char cellBuffer[32];
+	//Get inode count
+	int lineCount = getCell(1, lineBuffer, cellBuffer); 
+	inodeCount = getIntFromDecCell(cellBuffer, lineCount);
+	//Get block count
+	lineCount = getCell(2, lineBuffer, cellBuffer); 
+	blockCount = getIntFromDecCell(cellBuffer, lineCount);
+	//Get block size
+	lineCount = getCell(3, lineBuffer, cellBuffer); 
+	blockSize = getIntFromDecCell(cellBuffer, lineCount);
+	//Get blocksPerGroup
+	lineCount = getCell(5, lineBuffer, cellBuffer); 
+	blocksPerGroup = getIntFromDecCell(cellBuffer, lineCount);
+	//Get inodesPerGroup
+	lineCount = getCell(6, lineBuffer, cellBuffer); 
+	inodesPerGroup = getIntFromDecCell(cellBuffer, lineCount);
+	//get firstDataBlock
+	lineCount = getCell(8, lineBuffer, cellBuffer); 
+	firstDataBlock = getIntFromDecCell(cellBuffer, lineCount);
+}
+
+void initIndirectStructure() {
+	unsigned char lineBuffer[1024];
+	unsigned char cellBuffer[32];
+
+	//Initialize buffer
+	int maxSize = 5127; //No reason at all we'd pick this number. Nope.
+	indirectLinks = malloc(maxSize * sizeof(IndirectLink));
+	indirectLinksSize = 0;
+
+	int lastIndex = 0;
+	int lastContainingBlockNumber = 0;
+
+	int lineCount = 0;
+	while (1) {
+		if (getCellRow(indirectCsv, lineBuffer) == -1) break; //Reached end of indirects
+		
+		//Get the block number of the containing block
+		lineCount = getCell(0, lineBuffer, cellBuffer);
+		unsigned int thisBlock = getIntFromHexCell(cellBuffer, lineCount); 
+		if (thisBlock != lastContainingBlockNumber) { //Different block number as the last 
+													  //one in the list. Either block
+													  //already exists or must be created
+			//Assume block exists
+			int i;
+			for (i = 0; i < indirectLinksSize; i++) {
+				if (thisBlock == indirectLinks[i].blockNumber) { //Found it
+					break;
+				}
+			}
+			if (i >= indirectLinksSize) { //Didn't find it
+				if (indirectLinksSize >= maxSize) { //Must reallocate
+					maxSize *= 2;
+					indirectLinks = realloc(indirectLinks, maxSize * sizeof(IndirectLink));
+				}
+				//Must initialize
+				indirectLinks[i].blockNumber = thisBlock;
+				indirectLinks[i].blockPointers 
+					= malloc((blockSize / 4) * sizeof(unsigned int));
+				for (int j = 0; j < (blockSize / 4); j++) {
+					indirectLinks[i].blockPointers[j] = 0;
+				}
+				indirectLinksSize++;
+			}
+			//Change previous pointers
+			lastIndex = i;
+			lastContainingBlockNumber = thisBlock;
+		}
+
+		//Get entry index
+		lineCount = getCell(1, lineBuffer, cellBuffer);
+		unsigned int blockPointerIndex = getIntFromDecCell(cellBuffer, lineCount);
+
+		//Get block pointer value
+		lineCount = getCell(2, lineBuffer, cellBuffer);
+		unsigned int blockPointerValue = getIntFromHexCell(cellBuffer, lineCount);
+
+		//Assign to indirectLinks[lastIndex];
+		indirectLinks[lastIndex].blockPointers[blockPointerIndex] = blockPointerValue;
+	}
 }
 
 void initializeDataStructures() {
@@ -95,6 +187,10 @@ void initializeDataStructures() {
 	//Initialize maps, lists, so on
 
 	//Read super.csv
+	initSuperBlock();
+
+	//Initalize indirect link structure;
+	initIndirectStructure();
 
 	//Create indirection data structure
 	//For each inode in inode.csv
