@@ -101,11 +101,29 @@ int getCell(int col, char* line, char** buffer, int size) {
 		}
 		i++;
 	}
-	//find size of needed buffer
+	//find size of needed buffer, INCLUDING null byte
 	int cellSize = 0;
-	while (line[i + cellSize] != ',' || line[i + cellSize] != '\n' || line[i + cellSize] != '\0'){
+	do {
 		cellSize++;
+	} while (line[i + cellSize] != ',' || line[i + cellSize] != '\n' || line[i + cellSize] != '\0');
+
+	//free buffer if not null and allocate
+	if (*buffer == NULL){
+		free(*buffer);
 	}
+
+	*buffer = (char *)malloc(cellSize * sizeof(char));
+
+	//put letters into buffer
+	int j = 0;
+	while (i + j < cellSize - 1){
+		*buffer[j] = line[i + j];
+		j++;
+	}
+
+	*buffer[j] = '\0';
+
+	return (cellSize - 1);
 }
 
 //Returns the corresponding integer from cell assumed to be storing decimal info 
