@@ -35,7 +35,8 @@ int firstDataBlock; //Data blocks from zero to here are invalid
 //(null terminated). Returns the length of buffer, -1 if there are no more lines
 //(not including the null byte).
 int getCellRow(FILE* csv, char* buffer) {
-
+	char * line = NULL;
+	size_t size = 0;
 }
 
 //Given a certain column and line data, returns the colth column and stores to buffer
