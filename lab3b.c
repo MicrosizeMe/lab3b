@@ -55,14 +55,9 @@ Inode* getInode(unsigned int inodeNumber) {
 
 //Initializes the super block information based on superCsv
 void initSuperBlock() {
-	char* line = NULL;
-	size_t len = 0;
-	ssize_t read; 
-
-	while ((read = getline(&line, &len, superCsv)) != -1) {
-		//should only really be the first line
-
-	}
+	buffer[1024];
+	getCellRow(superCsv, &buffer);
+	
 }
 
 void initializeDataStructures() {
