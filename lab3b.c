@@ -44,6 +44,28 @@ int getCell(int col, char* line, char* buffer) {
 
 }
 
+//Returns the corresponding integer from cell assumed to be storing decimal info 
+unsigned int getIntFromDecCell(unsigned char* buffer, size_t count) {
+	unsigned int returnInt = 0;
+	for (int i = 0; i < count; i++) {
+		returnInt = (returnInt * 10) + (buffer[i] - '0');
+	}
+	return returnInt;
+}
+
+//Returns the corresponding integer from cell assumed to be storing lower case hex info
+unsigned int getIntFromHexCell(unsigned char* buffer, size_t count) {
+	unsigned int returnInt = 0;
+	for (int i = 0; i < count; i++) {
+		int number = buffer[i] - '0';
+		if (number >= 10) {
+			number = 10 + buffer[i] - 'a';
+		}
+		returnInt = (returnInt * 16) + number;
+	}
+	return returnInt;
+}
+
 //Returns a particular Inode structure given a number, or NULL if it doesn't exist.
 Inode* getInode(unsigned int inodeNumber) {
 	for (int i = 0; i < listedInodesSize; i++) {
