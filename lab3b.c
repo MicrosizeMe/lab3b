@@ -47,12 +47,13 @@ int firstDataBlock; //Data blocks from zero to here are invalid
 //Gets the next cell row of the csv file and stores the characters in buffer 
 //(null terminated). Returns the length of buffer, -1 if there are no more lines
 //(not including the null byte).
-int getCellRow(FILE* csv, char* buffer) {
-	char * line = NULL;
+// ** BUFFER ASSUMED TO BE NULL **
+int getCellRow(FILE* csv, char** buffer) {
+	//char * line = NULL;
 	size_t size = 0;
 	ssize_t read;
 
-	read = getline(&line, &size, csv);
+	read = getline(buffer, &size, csv);
 
 	if (read == -1)
 		return read;
@@ -61,7 +62,7 @@ int getCellRow(FILE* csv, char* buffer) {
 	int i;
 	int quoteCount = 0;
 	for (i = 0; i < size; i++){
-		if (line[i] == '"'){
+		if (*buffer[i] == '"'){
 			quoteCount++;
 		}
 	}
@@ -81,8 +82,8 @@ int getCellRow(FILE* csv, char* buffer) {
 
 		//append line2 to line
 		size += (size2 + 1);
-		line = (char *) realloc(line, size);
-		strncat(line, line2, size2);
+		*buffer = (char *) realloc(*buffer, size);
+		strncat(*buffer, line2, size2);
 
 		//updates quote count
 		for (i = 0; i < size2; i++){
@@ -97,13 +98,26 @@ int getCellRow(FILE* csv, char* buffer) {
 
 //Given a certain column and line data, returns the colth column and stores to buffer
 //(Null terminated). Returns the cell length of that buffer (not including the null byte)
-int getCell(int col, char* line, char* buffer, int size) {
+//Returns -1 if invalid column number (too high)
+int getCell(int col, char* line, char** buffer, int size) {
 	//find starting point
-	int i;
+	int i = 0;
 	int curCol = 0;
 	int inQuotes = 0;
-	for (i = 0; i < ; i++){
-		
+	while (curCol < col){
+		if (line[i] == '"'){
+			inQuotes = (inQuotes + 1) % 2;
+		} else if (inQuotes == 0 && line[i] == ',') {
+			curCol++;
+		} else if (inQuotes == 0 && (line[i] == '\0' || line[i] == '\n')){
+			return -1;
+		}
+		i++;
+	}
+	//find size of needed buffer
+	int cellSize = 0;
+	while (line[i + cellSize] != ',' || line[i + cellSize] != '\n' || line[i + cellSize] != '\0'){
+		cellSize++;
 	}
 }
 
