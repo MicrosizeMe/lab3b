@@ -5,14 +5,19 @@ DISTNAME=lab3b-604480880.tar.gz
 
 default: lab3b 
 
-lab3b: lab3b.c 
+lab3b: lab3b.o map.o
 	$(CC) $(FLAGS) -o $@ $^ $(LFLAGS)
 	
+lab3b.o: lab3b.c map.h
+	$(CC) $(FLAGS) $^ $(LFLAGS)
+
+map.o: map.c map.h
+	$(CC) $(FLAGS) $^ $(LFLAGS)
+
 dist: $(DISTNAME)
 
 $(DISTNAME) : Makefile lab3b.c README
 	tar -cvzf $(DISTNAME) $^
-
 
 run: 
 	./lab3b

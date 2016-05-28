@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include "map.h"
 
 
 FILE* superCsv;
@@ -24,12 +25,15 @@ typedef struct inodeStructure Inode;
 struct indirectLinkStructure {
 	unsigned int blockNumber;
 	unsigned int* blockPointers; //Size of this array is always blockSize / 4
-}
+};
 typedef struct indirectLinkStructure IndirectLink;
 
 //List of inodes
 Inode* listedInodes;
 int listedInodesSize;
+
+//Map of data block to listing inode relations
+InodeMap* blockPointerToInodeMap;
 
 //List of indirect block links
 IndirectLink* indirectLinks;
@@ -180,6 +184,14 @@ void initSuperBlock() {
 	free(cellBuffer);
 }
 
+IndirectLink* getIndirectLink(unsigned int blockNumber) {
+	for (int i = 0; i < indirectLinksSize; i++) {
+		if (indirectLinks[i].blockNumber == blockNumber)
+			return &(indirectLinks[i]);
+	}
+	return NULL;
+}
+
 void initIndirectStructure() {
 	unsigned char* lineBuffer = NULL;
 	unsigned char* cellBuffer = NULL;
@@ -245,6 +257,42 @@ void initIndirectStructure() {
 	free(cellBuffer);
 }
 
+//Returns whether the block pointer specified is valid for this file system. 0 is valid
+//as a null pointer.
+int isBlockPointerValid(unsigned int pointer) {
+	return (pointer != 1 && pointer < blockCount);
+}
+
+//Adds all the indirect blocks for a certain block pointer into the map. Recursively 
+//calls the rest at certain levels. 
+void addIndirect(unsigned int blockPointer, unsigned int inodeNumber, int level) {
+	IndirectLink* currentLink = getIndirectLink(blockPointer);
+	for (int i = 0; i < (blockSize / 4); i++) {
+		unsigned int currentBlockPointer = currentLink->blockPointers[i];
+		if (isBlockPointerValid(currentBlockPointer)) {
+			InodeEntry* entry = malloc(sizeof(InodeEntry));
+			entry->blockNumber = currentBlockPointer;
+			entry->inodeNumber = inodeNumber;
+			entry->indirectBlockNumber = blockPointer;
+			entry->entryNumber = i;
+			inodeMap_add(blockPointerToInodeMap, entry);
+		}
+		else if (currentBlockPointer != 0) {
+			//Printing invalid block pointer #7
+			fprintf(lab3bCheck, 
+				"INVALID BLOCK < %u > IN INODE < %u > INDIRECT BLOCK < %u > ENTRY < %d >\n",
+				currentBlockPointer, inodeNumber, blockPointer, i);
+		}
+		else break;
+	}
+	if (level > 0) {
+		for (int i = 0; i < (blockSize / 4); i++) {
+			unsigned int currentBlockPointer = currentLink->blockPointers[i];
+			addIndirect(currentBlockPointer, inodeNumber, level - 1);
+		}
+	}
+}
+
 void initInodes() {
 	//For each inode in inode.csv
 		//Check all block pointers are valid pointers 
@@ -264,6 +312,11 @@ void initInodes() {
 
 	int lineLength;
 	int cellLength;
+
+	//Initialize the map to the block pointer map
+	blockPointerToInodeMap = malloc(sizeof(InodeMap));
+	inodeMap_init(blockPointerToInodeMap, 1024);
+
 	while (1) {
 		lineLength = getCellRow(indirectCsv, &lineBuffer);
 		if (lineLength == -1) break; //Reached end of inodes
@@ -296,10 +349,30 @@ void initInodes() {
 			listedInodes[listedInodesSize].blockPointers[i]
 				= getIntFromHexCell(cellBuffer, cellLength);
 
-			//Check validity
+			//Check validity. If valid, put block reference into the map. If not,
+			//immediately print the error
+			unsigned int blockPointer = getIntFromHexCell(cellBuffer, cellLength);
+			if (isBlockPointerValid(blockPointer)) {
+				InodeEntry* entry = malloc(sizeof(InodeEntry));
+				entry->blockNumber = blockPointer;
+				entry->inodeNumber = listedInodes[listedInodesSize].inodeNumber;
+				entry->indirectBlockNumber = -1;
+				entry->entryNumber = i;
+				inodeMap_add(blockPointerToInodeMap, entry);
+			}
+			else if (blockPointer != 0) {
+				//Printing invalid block pointer #7
+				fprintf(lab3bCheck, "INVALID BLOCK < %u > IN INODE < %u > ENTRY < %d >\n",
+					blockPointer, listedInodes[listedInodesSize].inodeNumber, i);
+			}
 		}
-		unsigned int blockPointers[15]; //Lists block pointers 0 through 14, with 12-14
+		//unsigned int blockPointers[15]; //Lists block pointers 0 through 14, with 12-14
 							//being indirect, doubly indirect, triple indirect
+		//TODO: do this for indirect
+		for (int i = 1; i <= 3; i++) {
+			addIndirect(listedInodes[listedInodesSize].blockPointers[11 + i], 
+				listedInodes[listedInodesSize].inodeNumber, i);
+		}
 	}
 
 	free(lineBuffer);
