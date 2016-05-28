@@ -1,25 +1,5 @@
 #include "map.h"
-
-struct InodeEntryStructure {
-	unsigned int blockNumber;
-	unsigned int inodeNumber;
-	int indirectBlockNumber;
-	unsigned int entryNumber;
-};
-typedef struct InodeEntryStructure InodeEntry;
-
-struct InodeEntryListStructure {
-	unsigned int maxSize;
-	unsigned int size;
-	InodeEntry** entries;
-};
-typedef struct InodeEntryListStructure InodeEntryList;
-
-struct InodeMapStructure{
-	unsigned int bucketSize;
-	InodeEntryList* hashtable;
-};
-typedef struct InodeMapStructure InodeMap;
+#include <stdlib.h> 
 
 //Get the bucket for a block number.
 unsigned int inodeMap_hash(InodeMap* map, unsigned int blockNumber) {
@@ -75,13 +55,13 @@ InodeEntryList* inodeMap_search(InodeMap* map, unsigned int blockNumber) {
 
 	InodeEntryList currentList = map->hashtable[hashNumber];
 	
-	InodeEntryList returnList = malloc(sizeof(InodeEntryList));
-	inodeEntryList_init(&returnList);
+	InodeEntryList* returnList = malloc(sizeof(InodeEntryList));
+	inodeEntryList_init(returnList);
 
 	for (int i = 0; i < currentList.size; i++) {
-		if (currentList->entries[i]->blockNumber == blockNumber) {
-			inodeEntryList_add(&returnList, currentList->entries[i]);
+		if (currentList.entries[i]->blockNumber == blockNumber) {
+			inodeEntryList_add(returnList, currentList.entries[i]);
 		}
 	}
-	return &returnList;
+	return returnList;
 }

@@ -10,10 +10,10 @@ struct InodeEntryStructure {
 typedef struct InodeEntryStructure InodeEntry;
 
 struct InodeEntryListStructure {
+	unsigned int maxSize;
 	unsigned int size;
-	unsigned int count;
-	InodeEntry* entries;
-}
+	InodeEntry** entries;
+};
 typedef struct InodeEntryListStructure InodeEntryList;
 
 struct InodeMapStructure{

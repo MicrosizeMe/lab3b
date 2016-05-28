@@ -9,10 +9,10 @@ lab3b: lab3b.o map.o
 	$(CC) $(FLAGS) -o $@ $^ $(LFLAGS)
 	
 lab3b.o: lab3b.c map.h
-	$(CC) $(FLAGS) $^ $(LFLAGS)
+	$(CC) $(FLAGS) -c lab3b.c map.o $(LFLAGS)
 
 map.o: map.c map.h
-	$(CC) $(FLAGS) $^ $(LFLAGS)
+	$(CC) $(FLAGS) -c map.c $(LFLAGS)
 
 dist: $(DISTNAME)
 

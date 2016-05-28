@@ -182,9 +182,9 @@ Inode* getInode(unsigned int inodeNumber) {
 
 //Initializes the super block information based on superCsv
 void initSuperBlock() {
-	unsigned char* lineBuffer = NULL;
+	char* lineBuffer = NULL;
 	int lineLength = getCellRow(superCsv, &lineBuffer);
-	unsigned char* cellBuffer = NULL;
+	char* cellBuffer = NULL;
 	//Get inode count
 	int cellLength = getCell(1, lineBuffer, &cellBuffer, lineLength); 
 	cellLength = getIntFromDecCell(cellBuffer, cellLength);
@@ -217,8 +217,8 @@ IndirectLink* getIndirectLink(unsigned int blockNumber) {
 }
 
 void initIndirectStructure() {
-	unsigned char* lineBuffer = NULL;
-	unsigned char* cellBuffer = NULL;
+	char* lineBuffer = NULL;
+	char* cellBuffer = NULL;
 
 	//Initialize buffer
 	int maxSize = 5127; //No reason at all we'd pick this number. Nope.
@@ -326,8 +326,8 @@ void initInodes() {
 
 		//List inode in listedInodes
 			//Link link count found in inode, 
-	unsigned char* lineBuffer = NULL;
-	unsigned char* cellBuffer = NULL;
+	char* lineBuffer = NULL;
+	char* cellBuffer = NULL;
 
 	//Initialize the buffer
 	int maxSize = 187; //No reason at all we'd pick this number.
@@ -346,7 +346,7 @@ void initInodes() {
 		if (lineLength == -1) break; //Reached end of inodes
 		if (listedInodesSize >= maxSize) { //Must realloc
 			maxSize *= 2;
-			listedInodes = realloc(maxSize * sizeof(Inode));
+			listedInodes = realloc(listedInodes, maxSize * sizeof(Inode));
 		}
 		//Each inode is unique, so store newest one at the current node.
 		
@@ -420,6 +420,7 @@ void initializeDataStructures() {
 
 	//Initalize indirect link structure;
 	initIndirectStructure();
+	initInodes();
 
 	//Starting from root, for every directory listing 
 		//Find if corresponding inode exists in listedInodes
