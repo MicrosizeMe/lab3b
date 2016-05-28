@@ -98,4 +98,11 @@ Group 4 as similar work
 
 info needed from inodes
 * Figure out which data blocks each inode points to
-* Figure out 
+* Figure out JOHN CENA
+
+
+For every directory listing (starting from root, traversing to children)
+* Find if corresponding inode exists in listedInodes
+*  If not, put in some inode structure that saves the directory listing info with the inode number
+* Increment link count of corresponding inodes in ilistedInodes (5)
+*Check parent and self listings (6)
