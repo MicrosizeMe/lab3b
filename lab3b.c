@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "map.h"
+#include <string.h>
 
 
 FILE* superCsv;
@@ -66,7 +67,7 @@ int getCellRow(FILE* csv, char** buffer) {
 	int i;
 	int quoteCount = 0;
 	for (i = 0; i < size; i++){
-		if (*buffer[i] == '"'){
+		if ((*buffer)[i] == '"'){
 			quoteCount++;
 		}
 	}
@@ -118,11 +119,34 @@ int getCell(int col, char* line, char** buffer, int size) {
 		}
 		i++;
 	}
-	//find size of needed buffer
-	int cellSize = 0;
-	while (line[i + cellSize] != ',' || line[i + cellSize] != '\n' || line[i + cellSize] != '\0'){
+	//printf("i: %d\n", i);
+	//find size of needed buffer, INCLUDING null byte
+	int cellSize = 1;
+	while (line[i + cellSize-1] != ',' && line[i + cellSize-1] != '\n' && line[i + cellSize-1] != '\0') {
 		cellSize++;
+		//	printf("cellSize: %d\n", cellSize);
 	}
+	//printf("Final size: %d\n", cellSize);
+
+	//free buffer if not null and allocate
+	if (*buffer == NULL){
+		free(*buffer);
+	}
+
+	*buffer = (char *)malloc(cellSize * sizeof(char));
+
+
+	//put letters into buffer
+	int j = 0;
+	//printf("i: %d j: %d cellSize: %d\n", i, j, cellSize);
+	while (j < cellSize - 1){
+		(*buffer)[j] = line[i + j];
+		j++;
+	}
+
+	(*buffer)[j] = '\0';
+
+	return (cellSize - 1);
 }
 
 //Returns the corresponding integer from cell assumed to be storing decimal info 
@@ -409,4 +433,30 @@ void initializeDataStructures() {
 
 int main (int argc, const char* argv[]) {
 	initializeDataStructures();
+
+/*
+	//checking if getCellRow and getCell work
+	char * line = NULL;
+	char * cell = NULL;	
+	int lineLen = getCellRow(superCsv, &line);
+	int cellLen = 0;
+	int totalCols = 9;
+	int curCol;
+
+	while (lineLen != -1){
+		printf("New row\n");
+		for (curCol = 0; curCol < totalCols; curCol++){
+			cellLen = getCell(curCol, line, &cell, lineLen);
+			if (cellLen == -1){
+				printf("Column counting error on column %d\n", curCol);
+				break;
+			}
+			printf("%d\t%s\n", curCol, cell);
+		}
+		printf("\n");
+
+		free(line);
+		lineLen = getCellRow(superCsv, &line);
+	}
+*/
 }
