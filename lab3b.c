@@ -40,6 +40,23 @@ InodeMap* blockPointerToInodeMap;
 IndirectLink* indirectLinks;
 int indirectLinksSize;
 
+//List of free inode numbers
+unsigned int* freeInodeList;
+int freeInodeListSize;
+
+//List of free data blocks
+unsigned int* freeDatablockList;
+int freeDatablockListSize;
+
+//Lists data bitmap blocks
+unsigned int* dataBitmapLocations;
+int dataBitmapLocationsSize;
+
+//Lists inode bitmap blocks
+unsigned int* inodeBitmapLocations;
+int inodeBitmapLocationsSize;
+
+
 //Superblock info
 int inodeCount;
 int blockCount;
@@ -331,14 +348,14 @@ void initInodes() {
 			//Link link count found in inode, 
 	char* lineBuffer = NULL;
 	char* cellBuffer = NULL;
+	
+	int lineLength;
+	int cellLength;
 
 	//Initialize the buffer
 	int maxSize = 187; //No reason at all we'd pick this number.
 	listedInodes = malloc(maxSize * sizeof(Inode));
 	listedInodesSize = 0;
-
-	int lineLength;
-	int cellLength;
 
 	//Initialize the map to the block pointer map
 	blockPointerToInodeMap = malloc(sizeof(InodeMap));
@@ -422,6 +439,147 @@ void initInodes() {
 	free(cellBuffer);
 }
 
+void initFreeList() {
+	//For every row in the free list
+		//Check that inodes not referenced exist in listedInodes
+		//Store data block in list
+	char* lineBuffer = NULL;
+	char* cellBuffer = NULL;
+
+	int lineLength;
+	int cellLength;
+
+	//Initialize bitmap location data structures
+	//Data bitmap locations
+	dataBitmapLocations = malloc(sizeof(unsigned int) * 10);
+	dataBitmapLocationsSize = 0;
+	int dataBitmapLocationsMaxSize = 10;
+
+	//Inode bitmap locations
+	inodeBitmapLocations = malloc(sizeof(unsigned int) * 10);
+	inodeBitmapLocationsSize = 0;
+	int inodeBitmapLocationsMaxSize = 10;
+
+	//Initialize group info
+	while (1) {
+		lineLength = getCellRow(groupCsv, &lineBuffer);
+		if (lineLength == -1) break;
+
+		//Check if cells must be reallocated
+		if (dataBitmapLocationsSize >= dataBitmapLocationsMaxSize) {
+			//Reallocate data bitmap locations size
+			dataBitmapLocationsMaxSize *= 2;
+			dataBitmapLocations = realloc(dataBitmapLocations, 
+				sizeof(unsigned int) * dataBitmapLocationsMaxSize);
+		}
+		if (inodeBitmapLocationsSize >= inodeBitmapLocationsMaxSize) {
+			//Reallocate inode bitmap locations size
+			inodeBitmapLocationsMaxSize *= 2;
+			inodeBitmapLocations = realloc(inodeBitmapLocations, 
+				sizeof(unsigned int) * inodeBitmapLocationsMaxSize);
+		}
+
+		//Cells 4,5, for inode bitmap and block bitmap
+		//Get inode bitmap location
+		cellLength = getCell(4, lineBuffer, &cellBuffer, lineLength);
+		inodeBitmapLocations[inodeBitmapLocationsSize] 
+			= getIntFromHexCell(cellBuffer, cellLength);
+		inodeBitmapLocationsSize++;
+
+		//Get data bitmap location
+		cellLength = getCell(5, lineBuffer, &cellBuffer, lineLength);
+		dataBitmapLocations[dataBitmapLocationsSize] 
+			= getIntFromHexCell(cellBuffer, cellLength);
+		dataBitmapLocationsSize++;
+	}
+
+	//Initialize free lists
+	//Free inode list
+	freeInodeList = malloc(sizeof(unsigned int) * inodeCount);
+	freeInodeListSize = 0;
+	int freeInodeListMaxSize = inodeCount;
+
+	//Free data block list
+	freeDatablockList = malloc(sizeof(unsigned int) * blockCount);
+	freeDatablockListSize = 0;
+	int freeDatablockListMaxSize = blockCount;
+
+	//Traverse free list. While traversing free list (since free list is sorted),
+	//record previous inode. Do checking on skipped inodes. 
+	unsigned int previousInode = 0;
+	while (1) {
+		lineLength = getCellRow(bitmapCsv, &lineBuffer);
+		if (lineLength == -1) break;
+
+		//Check if free lists must be reallocated (they won't)
+		if (freeInodeListSize >= freeInodeListMaxSize) {
+			freeInodeListMaxSize *= 2;
+			freeInodeList = realloc(freeInodeList, 
+				sizeof(unsigned int) * freeInodeListMaxSize);
+		}
+		if (freeDatablockListSize >= freeDatablockListMaxSize) {
+			freeDatablockListMaxSize *= 2;
+			freeDatablockList = realloc(freeDatablockList, 
+				sizeof(unsigned int) * freeDatablockListMaxSize);
+		}
+
+		//Check the data block of a given entry
+		cellLength = getCell(0, lineBuffer, &cellBuffer, lineLength);
+		unsigned int bitmapDataBlock
+			= getIntFromHexCell(cellBuffer, cellLength);
+		//Get the corresponding free element
+		cellLength = getCell(1, lineBuffer, &cellBuffer, lineLength);
+		unsigned int freeElement
+			= getIntFromDecCell(cellBuffer, cellLength);
+
+		//Check if it's inode or data
+		int dataBlock = 0;
+		for (int i = 0; i < dataBitmapLocationsSize; i++) {
+			if (bitmapDataBlock == dataBitmapLocations[i]) {
+				//Is a data block
+				dataBlock = 1;
+				//Add to data free list
+				freeDatablockList[freeDatablockListSize] = freeElement;
+				freeDatablockListSize++;
+			}
+		}
+		if (dataBlock == 0) {
+			//It's an inode. Add to inode free list.
+			freeInodeList[freeInodeListSize] = freeElement;
+			freeInodeListSize++;
+			//Anything from previous inode to freeElement exclusive has not been touched
+			//by the free list. Check for integrity.
+			for (unsigned int i = previousInode + 1; i < freeElement; i++) {
+				//Check that inodes not on free list are on the list of inodes. If not, 
+				//output error. 
+				int inodeFound = 0;
+				for (int j = 0; j < listedInodesSize; j++) {
+					if (listedInodes[j].inodeNumber == i) {
+						inodeFound = 1;
+						printf("Inode %4u found in inode list\n", i);
+						//Check if the inode specified actually has zero reference counts
+						//(since that's the definition of unused, apparently)
+						if (listedInodes[j].dirLinkCount == 0) {
+							inodeFound = 0;
+						}
+						break;
+					}
+				}
+				if (!inodeFound) {
+					//Didn't find the inode, 
+					fprintf(lab3bCheck, 
+						"MISSING INODE < %u > SHOULD BE IN FREE LIST < %u >\n",
+						i, inodeBitmapLocations[i / inodesPerGroup]);
+				}
+			}
+			previousInode = freeElement;
+		}
+	}
+
+	free(lineBuffer);
+	free(cellBuffer);
+}
+
 void initializeDataStructures() {
 	superCsv = fopen("super.csv", "r");
 	groupCsv = fopen("group.csv", "r");
@@ -439,7 +597,17 @@ void initializeDataStructures() {
 
 	//Initalize indirect link structure;
 	initIndirectStructure();
+	//Init inode structure
+	//For each inode in inode.csv
+		//Check all block pointers are valid pointers 
+		//(pointing to locations that exist in fs)
+
+		//Record block number referenecd to inode number in map
+
+		//List inode in listedInodes
+			//Link link count found in inode, 
 	initInodes();
+
 
 	//Starting from root, for every directory listing 
 		//Find if corresponding inode exists in listedInodes
@@ -447,10 +615,12 @@ void initializeDataStructures() {
 		//Increment link count of corresponding inodes
 		//Check parent and self listing
 
+	//Init free list
 	//For every row in the free list
-		//Check that inodes referenced exist in listedInodes
+		//Check that inodes not referenced exist in listedInodes
 		//Store data block in list
-
+	initFreeList();
+	
 	//For every data block that exists
 		//Check for duplicate entries
 			//If such exist, check that it exists in free list. Print accordingly.
