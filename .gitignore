@@ -1,3 +1,5 @@
 *.o
 lab3b
 lab3b_check.txt
+*.csv
+gmon.out

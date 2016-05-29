@@ -187,7 +187,7 @@ void initSuperBlock() {
 	char* cellBuffer = NULL;
 	//Get inode count
 	int cellLength = getCell(1, lineBuffer, &cellBuffer, lineLength); 
-	cellLength = getIntFromDecCell(cellBuffer, cellLength);
+	inodeCount = getIntFromDecCell(cellBuffer, cellLength);
 	//Get block count
 	cellLength = getCell(2, lineBuffer, &cellBuffer, lineLength); 
 	blockCount = getIntFromDecCell(cellBuffer, cellLength);
@@ -277,6 +277,7 @@ void initIndirectStructure() {
 		//Assign to indirectLinks[lastIndex];
 		indirectLinks[lastIndex].blockPointers[blockPointerIndex] = blockPointerValue;
 	}
+
 	free(lineBuffer);
 	free(cellBuffer);
 }
@@ -290,10 +291,11 @@ int isBlockPointerValid(unsigned int pointer) {
 //Adds all the indirect blocks for a certain block pointer into the map. Recursively 
 //calls the rest at certain levels. 
 void addIndirect(unsigned int blockPointer, unsigned int inodeNumber, int level) {
+	if (level == 0) return; 
 	IndirectLink* currentLink = getIndirectLink(blockPointer);
 	for (int i = 0; i < (blockSize / 4); i++) {
 		unsigned int currentBlockPointer = currentLink->blockPointers[i];
-		if (isBlockPointerValid(currentBlockPointer)) {
+		if (currentBlockPointer != 0 && isBlockPointerValid(currentBlockPointer)) {
 			InodeEntry* entry = malloc(sizeof(InodeEntry));
 			entry->blockNumber = currentBlockPointer;
 			entry->inodeNumber = inodeNumber;
@@ -312,6 +314,7 @@ void addIndirect(unsigned int blockPointer, unsigned int inodeNumber, int level)
 	if (level > 0) {
 		for (int i = 0; i < (blockSize / 4); i++) {
 			unsigned int currentBlockPointer = currentLink->blockPointers[i];
+			if (currentBlockPointer == 0) break;
 			addIndirect(currentBlockPointer, inodeNumber, level - 1);
 		}
 	}
@@ -342,7 +345,7 @@ void initInodes() {
 	inodeMap_init(blockPointerToInodeMap, 1024);
 
 	while (1) {
-		lineLength = getCellRow(indirectCsv, &lineBuffer);
+		lineLength = getCellRow(inodeCsv, &lineBuffer);
 		if (lineLength == -1) break; //Reached end of inodes
 		if (listedInodesSize >= maxSize) { //Must realloc
 			maxSize *= 2;
@@ -376,7 +379,7 @@ void initInodes() {
 			//Check validity. If valid, put block reference into the map. If not,
 			//immediately print the error
 			unsigned int blockPointer = getIntFromHexCell(cellBuffer, cellLength);
-			if (isBlockPointerValid(blockPointer)) {
+			if (blockPointer != 0 && isBlockPointerValid(blockPointer)) {
 				InodeEntry* entry = malloc(sizeof(InodeEntry));
 				entry->blockNumber = blockPointer;
 				entry->inodeNumber = listedInodes[listedInodesSize].inodeNumber;
@@ -389,14 +392,30 @@ void initInodes() {
 				fprintf(lab3bCheck, "INVALID BLOCK < %u > IN INODE < %u > ENTRY < %d >\n",
 					blockPointer, listedInodes[listedInodesSize].inodeNumber, i);
 			}
+			else break;
 		}
 		//unsigned int blockPointers[15]; //Lists block pointers 0 through 14, with 12-14
 							//being indirect, doubly indirect, triple indirect
 		//TODO: do this for indirect
 		for (int i = 1; i <= 3; i++) {
-			addIndirect(listedInodes[listedInodesSize].blockPointers[11 + i], 
+			unsigned int indirectBlockPointer 
+				= listedInodes[listedInodesSize].blockPointers[11 + i];
+			if (indirectBlockPointer == 0) break;
+			addIndirect(indirectBlockPointer, 
 				listedInodes[listedInodesSize].inodeNumber, i);
 		}
+
+		listedInodesSize++;
+	}
+
+	for (int i = 0; i < listedInodesSize; i++) {
+		printf("%u, %C, %u, %u, ", 
+			listedInodes[i].inodeNumber, listedInodes[i].fileType, 
+			listedInodes[i].nodeLinkCount, listedInodes[i].dirLinkCount);
+		for (int j = 0; j < 15; j++) {
+			printf("%x, ", listedInodes[i].blockPointers[j]);
+		}
+		printf("\n");
 	}
 
 	free(lineBuffer);
