@@ -447,8 +447,13 @@ void initializeDataStructures() {
 		//Increment link count of corresponding inodes
 		//Check parent and self listing
 
-	//For every inode not in the free list
-		//Check that it exists in listedInodes
+	//For every row in the free list
+		//Check that inodes referenced exist in listedInodes
+		//Store data block in list
+
+	//For every data block that exists
+		//Check for duplicate entries
+			//If such exist, check that it exists in free list. Print accordingly.
 }
 
 int main (int argc, const char* argv[]) {
