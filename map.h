@@ -2,7 +2,7 @@
 #define MAP_H
 
 struct InodeEntryStructure {
-	unsigned int blockNumber;
+	unsigned int blockNumber; //Hashing element 
 	unsigned int inodeNumber;
 	int indirectBlockNumber; //Negative one if irrelevant
 	unsigned int entryNumber;

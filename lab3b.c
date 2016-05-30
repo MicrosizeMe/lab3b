@@ -56,6 +56,34 @@ int dataBitmapLocationsSize;
 unsigned int* inodeBitmapLocations;
 int inodeBitmapLocationsSize;
 
+//Stores the entries in a directory level, i.e entry number, linking entry inode, 
+//and the name.
+struct directoryEntryStructure { 
+	unsigned int entryNumber;
+	unsigned int inodeNumber;
+	char* entryName;
+};
+typedef struct directoryEntryStructure DirectoryEntry;
+
+//Stores the information for a particular folder (i.e parent inode number), and a list
+//of entries. 
+struct directoryStructure {
+	unsigned int parentInodeNumber
+	unsigned int size;
+	unsigned int maxSize;
+	DirectoryEntry* directoryEntries;
+};
+typedef struct directoryStructure Directory;
+
+//A list of all directories that exist in the thing
+Directory* directories;
+int directoriesSize;
+
+//Map of listed inodes in directories to corresponding directory inodes and entries.
+		//IMPORTANT: Reusing blockNumber field as the hashing key to store directory inode,
+		//even though the name is misleading.
+InodeMap* inodeNumberToDirectoryMap;
+
 
 //Superblock info
 int inodeCount;
@@ -559,7 +587,9 @@ void initFreeList() {
 						printf("Inode %4u found in inode list\n", i);
 						//Check if the inode specified actually has zero reference counts
 						//(since that's the definition of unused, apparently)
-						if (listedInodes[j].dirLinkCount == 0) {
+						if (listedInodes[j].dirLinkCount == 0 && i > 10) {
+							//Inodes 0 through 10 are reserved, so only subsequent inodes
+							//can really be considered empty
 							inodeFound = 0;
 						}
 						break;
@@ -634,6 +664,125 @@ void checkDuplicateBlocks() {
 	}
 }
 
+//Initializes the directory tree by reading all of the directory entries and storing
+//directory entry levels into the corresponding structure. Additionally, will increment
+//link counts in corresponding inodes and add mappings to the inodeToDirectory map.
+void initDirectoryTree() {
+	char* lineBuffer = NULL;
+	char* cellBuffer = NULL;
+
+	int lineLength;
+	int cellLength;
+
+	//Initialize map 
+	inodeNumberToDirectoryMap = malloc(sizeof(InodeMap));
+	inodeMap_init(inodeNumberToDirectoryMap, 1024); 
+
+	//Initialize directory list
+	int directoriesMaxSize = 20;
+	directoriesSize = 0;
+	directories = malloc(sizeof(Directory) * directoriesMaxSize);
+
+	//A way to save time in traversal since 90% of the time, the previous directory
+	//structure is the one you just accessed. 
+	int previousDirectoryInodeNumber = 0;
+	Directory* previousDirectory = NULL;
+
+	//Go through each line
+	while (1) {
+		lineLength = getCellRow(directoryCsv, &lineBuffer);
+		if (lineLength == -1) break; //Out of lines
+
+		//Get the parent inode of this particular line. 
+		cellLength = getCell(0, lineBuffer, &cellBuffer, lineLength);
+		unsigned int parentInodeNumber = getIntFromDecCell(cellBuffer, cellLength);
+
+		//If the inode number of this directory is different than the previous one, then we
+		//should initialize a new directory (or find one if it exists.. Otherwise, use the
+		//previous directory.
+		if (previousDirectoryInodeNumber != parentInodeNumber) {
+			//Try to find the directory in the list 
+			int foundDirectory = 0;
+			for (int i = 0; i < directoriesSize; i++) {
+				if (directories[i].parentInodeNumber == parentInodeNumber) {
+					//Found it
+					previousDirectory = &(directories[i]);
+					previousDirectoryInodeNumber = parentInodeNumber;
+					foundDirectory = 1;
+					break;
+				}
+			}
+			if (!foundDirectory) {
+				//Initialize new directory. 
+				//Check if reallocation of directory list is necessary
+				if (directoriesSize >= directoriesMaxSize) {
+					//Reallocate more space.
+					directoriesMaxSize *= 2;
+					directories = realloc(directories, directoriesMaxSize * sizeof(Directory));
+				}
+
+				previousDirectoryInodeNumber = parentInodeNumber;
+				directories[directoriesSize].parentInodeNumber = parentInodeNumber;
+				directories[directoriesSize].size = 0;
+				directories[directoriesSize].maxSize = 16;
+				previousDirectory = &directories[directoriesSize];
+				directoriesSize++;
+			}
+
+		}
+
+		//previousDirectory now holds the directory we should add the current entry to. 
+		//Create a DirectoryEntry to store info
+		DirectoryEntry* directoryEntry = malloc(sizeof(DirectoryEntry));
+
+		//Get the entry number
+		cellLength = getCell(1, lineBuffer, &cellBuffer, lineLength);
+		directoryEntry->entryNumber = getIntFromDecCell(cellBuffer, cellLength);
+
+		//Get the pointing inode number.
+		cellLength = getCell(4, lineBuffer, &cellBuffer, lineLength);
+		directoryEntry->inodeNumber = getIntFromDecCell(cellBuffer, cellLength);
+
+		//Allocate space for the name.
+
+		//Get the length of the name
+		cellLength = getCell(3, lineBuffer, &cellBuffer, lineLength);
+		unsigned int nameLength = getIntFromDecCell(cellBuffer, cellLength);
+
+		//Assumption: getCell will return without quotes and without nullbyte.
+		char* entryName = malloc( (nameLength + 1) * sizeof(char));
+		cellLength = getCell(5, lineBuffer, &entryName, lineLength);
+		entryName[cellLength] = '\0';
+
+		directoryEntry->entryName = entryName;
+
+		//Check if directories size must be reallocated
+		if (previousDirectory->size >= previousDirectory->maxSize) {
+			//Reallocate space
+			previousDirectory->maxSize *= 2;
+			previousDirectory->directoryEntries 
+				= realloc(previousDirectory->directoryEntries, 
+					previousDirectory->maxSize * sizeof(DirectoryEntry));
+		}
+		//Add the entry
+		previousDirectory->directoryEntries[previousDirectory->size] = directoryEntry;
+		previousDirectory->size++;
+	}
+
+
+	free(lineBuffer);
+	free(cellBuffer);
+}
+
+void traverseDirectoryTree() {
+	//Starting from root, for every directory listing 
+		//Find if corresponding inode exists in listedInodes
+			//Else print to some data structure marking that fact
+		//Increment link count of corresponding inodes
+		//Check parent and self listing
+
+}
+
 
 void initializeDataStructures() {
 	superCsv = fopen("super.csv", "r");
@@ -669,6 +818,8 @@ void initializeDataStructures() {
 			//Else print to some data structure marking that fact
 		//Increment link count of corresponding inodes
 		//Check parent and self listing
+	initDirectoryTree();
+	traverseDirectoryTree();
 
 	//Init free list
 	//For every row in the free list
@@ -680,6 +831,9 @@ void initializeDataStructures() {
 		//Check for duplicate entries
 			//If such exist, check that it exists in free list. Print accordingly.
 	checkDuplicateBlocks();
+
+	//Verify that the link counts of all inodes is sacrosanct
+
 }
 
 int main (int argc, const char* argv[]) {
