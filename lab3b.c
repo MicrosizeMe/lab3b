@@ -566,7 +566,7 @@ void initFreeList() {
 					}
 				}
 				if (!inodeFound) {
-					//Didn't find the inode, 
+					//Didn't find the inode, so print
 					fprintf(lab3bCheck, 
 						"MISSING INODE < %u > SHOULD BE IN FREE LIST < %u >\n",
 						i, inodeBitmapLocations[i / inodesPerGroup]);
@@ -579,6 +579,61 @@ void initFreeList() {
 	free(lineBuffer);
 	free(cellBuffer);
 }
+
+void checkDuplicateBlocks() {
+	//For every data block that exists
+		//Check for existance on the free list
+		//Check for duplicate entries
+			//If such exist, check that it exists in free list. Print accordingly.
+	for (unsigned int i = 0; i < blockCount; i++) {
+		//Get entries for i
+		InodeEntryList* entries = inodeMap_search(blockPointerToInodeMap, i);
+		//If there's an entry, we're interested. 
+		if (entries->size != 0) {
+			int blockFoundInFreeList = 0;
+			for (int j = 0; j < freeDatablockListSize; j++) {
+				if (freeDatablockList[j] == i) {
+					//Found it in the free list
+					blockFoundInFreeList = 1;
+					break;
+				}
+			}
+			//If there's an entry and we found it on the free list, we have an 
+			//unallocated block error. Print an error for all situations we found.
+			if (blockFoundInFreeList) {
+				fprintf(lab3bCheck, "UNALLOCATED BLOCK < %u > REFERENCED BY ", i);
+			}
+			//Otherwise, we're only interested if there's more than one entry. 
+			else if (entries->size > 1) {
+				fprintf(lab3bCheck, "MULTIPLY REFERENCED BLOCK < %u > BY ", i);
+			}
+
+			//Print all block references if needed.
+			if (blockFoundInFreeList || entries->size > 1) {
+				for (unsigned int j = 0; j < entries->size; j++) {
+					InodeEntry entry = *(entries->entries[j]);
+					if (entry.indirectBlockNumber != -1) {
+						fprintf(lab3bCheck,
+							"INODE < %u > INDIRECT BLOCK < %d > ENTRY < %u > ",
+							entry.inodeNumber, 
+							entry.indirectBlockNumber,
+							entry.entryNumber
+						);
+					}
+					else {
+						fprintf(lab3bCheck,
+							"INODE < %u > ENTRY < %u > ",
+							entry.inodeNumber, 
+							entry.entryNumber
+						);	
+					}
+				}
+				fprintf(lab3bCheck, "\n");
+			}
+		}
+	}
+}
+
 
 void initializeDataStructures() {
 	superCsv = fopen("super.csv", "r");
@@ -624,6 +679,7 @@ void initializeDataStructures() {
 	//For every data block that exists
 		//Check for duplicate entries
 			//If such exist, check that it exists in free list. Print accordingly.
+	checkDuplicateBlocks();
 }
 
 int main (int argc, const char* argv[]) {
