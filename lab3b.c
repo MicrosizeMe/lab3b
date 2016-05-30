@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include "map.h"
 #include <string.h>
+#include <string.h>
 
 
 FILE* superCsv;
@@ -68,7 +69,7 @@ typedef struct directoryEntryStructure DirectoryEntry;
 //Stores the information for a particular folder (i.e parent inode number), and a list
 //of entries. 
 struct directoryStructure {
-	unsigned int parentInodeNumber
+	unsigned int parentInodeNumber;
 	unsigned int size;
 	unsigned int maxSize;
 	DirectoryEntry* directoryEntries;
@@ -167,7 +168,8 @@ int getCell(int col, char* line, char** buffer, int size) {
 	//printf("i: %d\n", i);
 	//find size of needed buffer, INCLUDING null byte
 	int cellSize = 1;
-	while (line[i + cellSize-1] != ',' && line[i + cellSize-1] != '\n' && line[i + cellSize-1] != '\0') {
+	while (line[i + cellSize-1] != ',' 
+		&& line[i + cellSize-1] != '\n') {
 		cellSize++;
 		//	printf("cellSize: %d\n", cellSize);
 	}
@@ -453,16 +455,6 @@ void initInodes() {
 		listedInodesSize++;
 	}
 
-	for (int i = 0; i < listedInodesSize; i++) {
-		printf("%u, %C, %u, %u, ", 
-			listedInodes[i].inodeNumber, listedInodes[i].fileType, 
-			listedInodes[i].nodeLinkCount, listedInodes[i].dirLinkCount);
-		for (int j = 0; j < 15; j++) {
-			printf("%x, ", listedInodes[i].blockPointers[j]);
-		}
-		printf("\n");
-	}
-
 	free(lineBuffer);
 	free(cellBuffer);
 }
@@ -584,7 +576,6 @@ void initFreeList() {
 				for (int j = 0; j < listedInodesSize; j++) {
 					if (listedInodes[j].inodeNumber == i) {
 						inodeFound = 1;
-						printf("Inode %4u found in inode list\n", i);
 						//Check if the inode specified actually has zero reference counts
 						//(since that's the definition of unused, apparently)
 						if (listedInodes[j].dirLinkCount == 0 && i > 10) {
@@ -631,11 +622,11 @@ void checkDuplicateBlocks() {
 			//If there's an entry and we found it on the free list, we have an 
 			//unallocated block error. Print an error for all situations we found.
 			if (blockFoundInFreeList) {
-				fprintf(lab3bCheck, "UNALLOCATED BLOCK < %u > REFERENCED BY ", i);
+				fprintf(lab3bCheck, "UNALLOCATED BLOCK < %u > REFERENCED BY", i);
 			}
 			//Otherwise, we're only interested if there's more than one entry. 
 			else if (entries->size > 1) {
-				fprintf(lab3bCheck, "MULTIPLY REFERENCED BLOCK < %u > BY ", i);
+				fprintf(lab3bCheck, "MULTIPLY REFERENCED BLOCK < %u > BY", i);
 			}
 
 			//Print all block references if needed.
@@ -644,7 +635,7 @@ void checkDuplicateBlocks() {
 					InodeEntry entry = *(entries->entries[j]);
 					if (entry.indirectBlockNumber != -1) {
 						fprintf(lab3bCheck,
-							"INODE < %u > INDIRECT BLOCK < %d > ENTRY < %u > ",
+							" INODE < %u > INDIRECT BLOCK < %d > ENTRY < %u >",
 							entry.inodeNumber, 
 							entry.indirectBlockNumber,
 							entry.entryNumber
@@ -652,7 +643,7 @@ void checkDuplicateBlocks() {
 					}
 					else {
 						fprintf(lab3bCheck,
-							"INODE < %u > ENTRY < %u > ",
+							" INODE < %u > ENTRY < %u >",
 							entry.inodeNumber, 
 							entry.entryNumber
 						);	
@@ -725,6 +716,8 @@ void initDirectoryTree() {
 				directories[directoriesSize].parentInodeNumber = parentInodeNumber;
 				directories[directoriesSize].size = 0;
 				directories[directoriesSize].maxSize = 16;
+				directories[directoriesSize].directoryEntries 
+					= malloc(directories[directoriesSize].maxSize * sizeof(DirectoryEntry));
 				previousDirectory = &directories[directoriesSize];
 				directoriesSize++;
 			}
@@ -733,29 +726,6 @@ void initDirectoryTree() {
 
 		//previousDirectory now holds the directory we should add the current entry to. 
 		//Create a DirectoryEntry to store info
-		DirectoryEntry* directoryEntry = malloc(sizeof(DirectoryEntry));
-
-		//Get the entry number
-		cellLength = getCell(1, lineBuffer, &cellBuffer, lineLength);
-		directoryEntry->entryNumber = getIntFromDecCell(cellBuffer, cellLength);
-
-		//Get the pointing inode number.
-		cellLength = getCell(4, lineBuffer, &cellBuffer, lineLength);
-		directoryEntry->inodeNumber = getIntFromDecCell(cellBuffer, cellLength);
-
-		//Allocate space for the name.
-
-		//Get the length of the name
-		cellLength = getCell(3, lineBuffer, &cellBuffer, lineLength);
-		unsigned int nameLength = getIntFromDecCell(cellBuffer, cellLength);
-
-		//Assumption: getCell will return without quotes and without nullbyte.
-		char* entryName = malloc( (nameLength + 1) * sizeof(char));
-		cellLength = getCell(5, lineBuffer, &entryName, lineLength);
-		entryName[cellLength] = '\0';
-
-		directoryEntry->entryName = entryName;
-
 		//Check if directories size must be reallocated
 		if (previousDirectory->size >= previousDirectory->maxSize) {
 			//Reallocate space
@@ -764,25 +734,127 @@ void initDirectoryTree() {
 				= realloc(previousDirectory->directoryEntries, 
 					previousDirectory->maxSize * sizeof(DirectoryEntry));
 		}
-		//Add the entry
-		previousDirectory->directoryEntries[previousDirectory->size] = directoryEntry;
-		previousDirectory->size++;
-	}
 
+		//Get the entry number
+		cellLength = getCell(1, lineBuffer, &cellBuffer, lineLength);
+		unsigned int entryNumber = getIntFromDecCell(cellBuffer, cellLength);
+
+		//Get the pointing inode number.
+		cellLength = getCell(4, lineBuffer, &cellBuffer, lineLength);
+		unsigned int inodeNumber = getIntFromDecCell(cellBuffer, cellLength);
+
+		//Allocate space for the name.
+		//Get the length of the name
+		cellLength = getCell(3, lineBuffer, &cellBuffer, lineLength);
+		unsigned int nameLength = getIntFromDecCell(cellBuffer, cellLength);
+
+		//Assumption: getCell will return with quotes and without nullbyte.
+		char* entryName = malloc( (nameLength + 1) * sizeof(char));
+		cellLength = getCell(5, lineBuffer, &entryName, lineLength);
+		entryName[cellLength - 1] = '\0';
+
+		//Add fields
+		previousDirectory->directoryEntries[previousDirectory->size].entryNumber 
+			= entryNumber;
+		previousDirectory->directoryEntries[previousDirectory->size].inodeNumber 
+			= inodeNumber;
+		previousDirectory->directoryEntries[previousDirectory->size].entryName 
+			= entryName + 1;
+		//Add the entry
+		previousDirectory->size++;
+
+		//Add the entry to the map
+		InodeEntry* mapEntry = malloc(sizeof(InodeEntry));
+		mapEntry->blockNumber = parentInodeNumber;
+		mapEntry->inodeNumber = inodeNumber;
+		mapEntry->indirectBlockNumber = -1;
+		mapEntry->entryNumber = entryNumber;
+		inodeMap_add(inodeNumberToDirectoryMap, mapEntry);
+
+		//Find the corresponding inode and increment its directory link count.
+		for (int i = 0; i < listedInodesSize; i++) {
+			if (listedInodes[i].inodeNumber == inodeNumber) {
+				listedInodes[i].dirLinkCount++;
+			}
+		}
+	}
 
 	free(lineBuffer);
 	free(cellBuffer);
 }
 
-void traverseDirectoryTree() {
-	//Starting from root, for every directory listing 
-		//Find if corresponding inode exists in listedInodes
-			//Else print to some data structure marking that fact
-		//Increment link count of corresponding inodes
-		//Check parent and self listing
 
+void traverseDirectoryTree(unsigned int currentInode, unsigned int parentInode) {
+	//Starting from root, for every directory listing 
+		//Check parent and self listing are sacrosanct. If not, print an error.
+	for (int i = 0; i < directoriesSize; i++) {
+		if (directories[i].parentInodeNumber == currentInode) {
+			//Go through every entry and either invoke this function on it or check
+			//.. and . references.
+			DirectoryEntry* directoryEntries = directories[i].directoryEntries;
+			for (unsigned int j = 0; j < directories[i].size; j++) {
+				if (!strcmp(directoryEntries[j].entryName, "..") 
+					&& directoryEntries[j].inodeNumber != parentInode) {
+					//Check parent listing
+					fprintf(lab3bCheck, 
+						"INCORRECT ENTRY IN < %u > NAME < .. > LINK TO < %u > SHOULD BE < %u >\n",
+						currentInode, 
+						directoryEntries[j].inodeNumber,
+						parentInode
+					);
+				} 
+				else if (!strcmp(directoryEntries[j].entryName, ".") 
+					&& directoryEntries[j].inodeNumber != parentInode) {
+					//Check self listing
+					fprintf(lab3bCheck, 
+						"INCORRECT ENTRY IN < %u > NAME < . > LINK TO < %u > SHOULD BE < %u >\n",
+						currentInode, 
+						directoryEntries[j].inodeNumber,
+						currentInode
+					);
+				}
+				else if (strcmp(directoryEntries[j].entryName, ".") 
+					&& strcmp(directoryEntries[j].entryName, "..")) {
+					//Find if the corresponding inode actually is a directory
+					int isDir = 0;
+					for (int k = 0; k < directoriesSize; k++) {
+						if (directories[k].parentInodeNumber == directoryEntries[k].inodeNumber)
+							isDir = 1;
+					}
+					//Recursively call 
+					if (isDir) {
+						traverseDirectoryTree(directoryEntries[j].inodeNumber, currentInode);
+					}
+				}
+			}
+		}
+	}
 }
 
+//Check if link counts are right
+void verifyLinkCount() {
+	for (unsigned int i = 0; i < listedInodesSize; i++) {
+		if (listedInodes[i].dirLinkCount != listedInodes[i].nodeLinkCount) {
+			fprintf(lab3bCheck, "LINKCOUNT < %u > IS < %u > SHOULD BE < %u >\n",
+				i, listedInodes[i].nodeLinkCount, listedInodes[i].dirLinkCount);
+		}
+	}
+}
+
+void verifyUnallocatedInodes() {
+	for (unsigned int i = 0; i < freeInodeListSize; i++) {
+		InodeEntryList* list = inodeMap_search(inodeNumberToDirectoryMap, freeInodeList[i]);
+		if (list->size > 0) {
+			fprintf(lab3bCheck, "UNALLOCATED INODE < %u > REFERENCED BY", i);
+			for (unsigned int j = 0; j < list->size; j++) {
+				InodeEntry entry = *(list->entries[j]);
+				fprintf(lab3bCheck, " DIRECTORY < %u > ENTRY < %u >",
+					entry.inodeNumber, entry.entryNumber);
+			}
+			fprintf(lab3bCheck, "\n");
+		}
+	}
+}
 
 void initializeDataStructures() {
 	superCsv = fopen("super.csv", "r");
@@ -792,7 +864,7 @@ void initializeDataStructures() {
 	directoryCsv = fopen("directory.csv", "r");
 	indirectCsv = fopen("indirect.csv", "r");
 
-	lab3bCheck = fopen("lab3b_check.txt", "w+");
+	lab3bCheck = fopen("lab3b_check.txt", "w");
 
 	//Initialize maps, lists, so on
 
@@ -819,7 +891,7 @@ void initializeDataStructures() {
 		//Increment link count of corresponding inodes
 		//Check parent and self listing
 	initDirectoryTree();
-	traverseDirectoryTree();
+	traverseDirectoryTree(2, 2); //2 being the root inode
 
 	//Init free list
 	//For every row in the free list
@@ -833,6 +905,10 @@ void initializeDataStructures() {
 	checkDuplicateBlocks();
 
 	//Verify that the link counts of all inodes is sacrosanct
+	// verifyLinkCount();
+
+	//Verify that unallocated inodes are not referenced
+	verifyUnallocatedInodes();
 
 }
 
