@@ -591,6 +591,8 @@ void initFreeList() {
 					fprintf(lab3bCheck, 
 						"MISSING INODE < %u > SHOULD BE IN FREE LIST < %u >\n",
 						i, inodeBitmapLocations[i / inodesPerGroup]);
+					freeInodeList[freeInodeListSize] = i;
+					freeInodeListSize++;
 				}
 			}
 			previousInode = freeElement;
@@ -765,8 +767,8 @@ void initDirectoryTree() {
 
 		//Add the entry to the map
 		InodeEntry* mapEntry = malloc(sizeof(InodeEntry));
-		mapEntry->blockNumber = parentInodeNumber;
-		mapEntry->inodeNumber = inodeNumber;
+		mapEntry->blockNumber = inodeNumber;
+		mapEntry->inodeNumber = parentInodeNumber;
 		mapEntry->indirectBlockNumber = -1;
 		mapEntry->entryNumber = entryNumber;
 		inodeMap_add(inodeNumberToDirectoryMap, mapEntry);
@@ -778,7 +780,6 @@ void initDirectoryTree() {
 			}
 		}
 	}
-
 	free(lineBuffer);
 	free(cellBuffer);
 }
@@ -793,9 +794,12 @@ void traverseDirectoryTree(unsigned int currentInode, unsigned int parentInode) 
 			//.. and . references.
 			DirectoryEntry* directoryEntries = directories[i].directoryEntries;
 			for (unsigned int j = 0; j < directories[i].size; j++) {
+				//printf("%u: %s -> %u\n", currentInode, directoryEntries[j].entryName, directoryEntries[j].inodeNumber);
+
 				if (!strcmp(directoryEntries[j].entryName, "..") 
 					&& directoryEntries[j].inodeNumber != parentInode) {
 					//Check parent listing
+					// printf("!!!\n");
 					fprintf(lab3bCheck, 
 						"INCORRECT ENTRY IN < %u > NAME < .. > LINK TO < %u > SHOULD BE < %u >\n",
 						currentInode, 
@@ -804,8 +808,9 @@ void traverseDirectoryTree(unsigned int currentInode, unsigned int parentInode) 
 					);
 				} 
 				else if (!strcmp(directoryEntries[j].entryName, ".") 
-					&& directoryEntries[j].inodeNumber != parentInode) {
+					&& directoryEntries[j].inodeNumber != currentInode) {
 					//Check self listing
+					// printf("!!!\n");
 					fprintf(lab3bCheck, 
 						"INCORRECT ENTRY IN < %u > NAME < . > LINK TO < %u > SHOULD BE < %u >\n",
 						currentInode, 
@@ -816,15 +821,22 @@ void traverseDirectoryTree(unsigned int currentInode, unsigned int parentInode) 
 				else if (strcmp(directoryEntries[j].entryName, ".") 
 					&& strcmp(directoryEntries[j].entryName, "..")) {
 					//Find if the corresponding inode actually is a directory
+					//printf(%u: %s "-> %u\n", currentInode, directoryEntries[j].entryName, directoryEntries[j].inodeNumber);
 					int isDir = 0;
 					for (int k = 0; k < directoriesSize; k++) {
-						if (directories[k].parentInodeNumber == directoryEntries[k].inodeNumber)
+						if (directories[k].parentInodeNumber == directoryEntries[j].inodeNumber){
 							isDir = 1;
+							break;
+						}
 					}
 					//Recursively call 
 					if (isDir) {
+						
 						traverseDirectoryTree(directoryEntries[j].inodeNumber, currentInode);
 					}
+				}
+				else {
+					// printf("%u: %s -> %u\n", currentInode, directoryEntries[j].entryName, directoryEntries[j].inodeNumber);
 				}
 			}
 		}
@@ -835,8 +847,20 @@ void traverseDirectoryTree(unsigned int currentInode, unsigned int parentInode) 
 void verifyLinkCount() {
 	for (unsigned int i = 0; i < listedInodesSize; i++) {
 		if (listedInodes[i].dirLinkCount != listedInodes[i].nodeLinkCount) {
+			//Check if the particular directory is in the free list
+			
+			// int onFreeList = 0;
+			// for (unsigned int j = 0; j < freeInodeListSize; j++) {
+			// 	if (freeInodeList[j] == i) {
+			// 		onFreeList = 1;
+			// 		break;
+			// 	}
+			// }
+			//if (!onFreeList)
 			fprintf(lab3bCheck, "LINKCOUNT < %u > IS < %u > SHOULD BE < %u >\n",
-				i, listedInodes[i].nodeLinkCount, listedInodes[i].dirLinkCount);
+				listedInodes[i].inodeNumber, 
+				listedInodes[i].nodeLinkCount, 
+				listedInodes[i].dirLinkCount);
 		}
 	}
 }
@@ -845,7 +869,7 @@ void verifyUnallocatedInodes() {
 	for (unsigned int i = 0; i < freeInodeListSize; i++) {
 		InodeEntryList* list = inodeMap_search(inodeNumberToDirectoryMap, freeInodeList[i]);
 		if (list->size > 0) {
-			fprintf(lab3bCheck, "UNALLOCATED INODE < %u > REFERENCED BY", i);
+			fprintf(lab3bCheck, "UNALLOCATED INODE < %u > REFERENCED BY", freeInodeList[i]);
 			for (unsigned int j = 0; j < list->size; j++) {
 				InodeEntry entry = *(list->entries[j]);
 				fprintf(lab3bCheck, " DIRECTORY < %u > ENTRY < %u >",
@@ -854,6 +878,20 @@ void verifyUnallocatedInodes() {
 			fprintf(lab3bCheck, "\n");
 		}
 	}
+	/*
+	for (unsigned int i = 0; i < inodeCount; i++) {
+		InodeEntryList* list = inodeMap_search(inodeNumberToDirectoryMap, i);
+		if (list->size > 0) {
+			fprintf(lab3bCheck, "UNALLOCATED INODE < %u > REFERENCED BY", i);
+			for (unsigned int j = 0; j < list->size; j++) {
+				InodeEntry entry = *(list->entries[j]);
+				fprintf(lab3bCheck, " DIRECTORY < %u > ENTRY < %u >\n",
+					entry.inodeNumber, entry.entryNumber);
+			}
+			fprintf(lab3bCheck, "\n");
+		}
+	}
+	*/
 }
 
 void initializeDataStructures() {
@@ -905,11 +943,10 @@ void initializeDataStructures() {
 	checkDuplicateBlocks();
 
 	//Verify that the link counts of all inodes is sacrosanct
-	// verifyLinkCount();
+	verifyLinkCount();
 
 	//Verify that unallocated inodes are not referenced
 	verifyUnallocatedInodes();
-
 }
 
 int main (int argc, const char* argv[]) {
